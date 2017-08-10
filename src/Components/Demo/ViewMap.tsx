@@ -192,7 +192,7 @@ export const demoViewMap: ViewActivatorMap = {
       </div>
     );
   },
-  ListViewModel: (viewModel: Components.ListViewModel<any, any>, componentRoute: string) => {
+  ListViewModel: (viewModel: Components.BaseListViewModel<any, any>, componentRoute: string) => {
     switch (componentRoute) {
       case 'List':
         return (

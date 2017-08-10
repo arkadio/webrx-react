@@ -3,7 +3,7 @@ import * as clone from 'clone';
 
 import { wx, ObservableOrProperty, ReadOnlyProperty, Property, Command } from '../../../WebRx';
 import { ObjectComparer, SortDirection } from '../../../Utils/Compare';
-import { ListViewModel } from '../List/ListViewModel';
+import { BaseListViewModel } from '../List/ListViewModel';
 import { SearchViewModel, SearchRoutingState } from '../Search/SearchViewModel';
 import { PagerViewModel, PagerRoutingState } from '../Pager/PagerViewModel';
 
@@ -21,8 +21,8 @@ export interface ProjectionRequest {
   sortDirection?: SortDirection;
 }
 
-export interface ProjectionResult<TData> {
-  items: TData[];
+export interface ProjectionResult<TListItem> {
+  items: TListItem[];
   count: number;
 }
 
@@ -33,7 +33,7 @@ export interface DataGridRoutingState {
   pager: PagerRoutingState;
 }
 
-export abstract class BaseDataGridViewModel<TData, TRequest extends ProjectionRequest, TResult extends ProjectionResult<TData>> extends ListViewModel<TData, DataGridRoutingState> {
+export abstract class BaseDataGridViewModel<TData, TListItem, TRequest extends ProjectionRequest, TResult extends ProjectionResult<TListItem>> extends BaseListViewModel<TData, TListItem, DataGridRoutingState> {
   public static displayName = 'BaseDataGridViewModel';
 
   protected readonly comparer: ObjectComparer<TData>;
@@ -44,7 +44,7 @@ export abstract class BaseDataGridViewModel<TData, TRequest extends ProjectionRe
 
   public readonly projectionRequests: ReadOnlyProperty<TRequest>;
   public readonly projectionResults: ReadOnlyProperty<TResult>;
-  public readonly projectedItems: ReadOnlyProperty<TData[]>;
+  public readonly projectedItems: ReadOnlyProperty<TListItem[]>;
   public readonly sortField: ReadOnlyProperty<string | undefined>;
   public readonly sortDirection: ReadOnlyProperty<SortDirection | undefined>;
   public readonly isLoading: ReadOnlyProperty<boolean>;
@@ -56,17 +56,18 @@ export abstract class BaseDataGridViewModel<TData, TRequest extends ProjectionRe
   public readonly project: Command<TResult | undefined>;
 
   constructor(
+    items: ObservableOrProperty<TData[]>,
+    listItemSelector: (item: TData) => TListItem,
     requests: Observable<TRequest>,
-    items?: ObservableOrProperty<TData[]>,
-    protected readonly filterer?: (item: TData, regex: RegExp) => boolean,
-    comparer: string | ObjectComparer<TData> = new ObjectComparer<TData>(),
+    protected readonly filterer?: (item: TListItem, regex: RegExp) => boolean,
+    protected readonly comparer = new ObjectComparer<TListItem>(),
     isMultiSelectEnabled?: boolean,
     isLoading?: ObservableOrProperty<boolean>,
     pagerLimit?: number,
     rateLimit = 100,
     isRoutingEnabled?: boolean,
   ) {
-    super(items, isMultiSelectEnabled, isRoutingEnabled);
+    super(items, listItemSelector, isMultiSelectEnabled, isRoutingEnabled);
 
     if (String.isString(comparer)) {
       this.comparer = new ObjectComparer<TData>(comparer);
@@ -239,14 +240,8 @@ export abstract class BaseDataGridViewModel<TData, TRequest extends ProjectionRe
 
   protected abstract getProjectionResult(request: TRequest): Observable<TResult>;
 
-  // NOTE: this is a bit dangerous since we're overriding an inherited local
-  //       member with a property getter.
-  get items() {
+  get itemsSource() {
     return this.projectedItems;
-  }
-
-  public get allItems() {
-    return this.listItems;
   }
 
   public canFilter() {
@@ -290,49 +285,56 @@ export abstract class BaseDataGridViewModel<TData, TRequest extends ProjectionRe
   }
 }
 
-export interface ItemsProjectionRequest<TData> extends ProjectionRequest {
-  items: TData[];
+export interface ItemsProjectionRequest<TListItem> extends ProjectionRequest {
+  items: TListItem[];
 }
 
-export class DataGridViewModel<TData> extends BaseDataGridViewModel<TData, ItemsProjectionRequest<TData>, ProjectionResult<TData>> {
+export class DataGridViewModel<TListItem> extends BaseDataGridViewModel<TListItem, TListItem, ItemsProjectionRequest<TListItem>, ProjectionResult<TListItem>> {
   public static displayName = 'DataGridViewModel';
 
-  public static create<TData>(...items: TData[]) {
-    return new DataGridViewModel(wx.property<TData[]>(items, false));
-  }
-
-  private static getItemsRequestObservable<TData>(source: ObservableOrProperty<TData[]>) {
+  private static getItemsRequestObservable<T>(source: ObservableOrProperty<T[]>) {
     if (wx.isProperty(source) === true) {
       return wx
         .whenAny(source, x => x)
         .filterNull()
-        .map(items => <ItemsProjectionRequest<TData>>{
+        .map(items => <ItemsProjectionRequest<T>>{
           items,
         });
     }
     else {
-      return (<Observable<TData[]>>source)
-        .map(items => <ItemsProjectionRequest<TData>>{
+      return (<Observable<T[]>>source)
+        .map(items => <ItemsProjectionRequest<T>>{
           items,
         });
     }
   }
 
   constructor(
-    items: ObservableOrProperty<TData[]> = wx.property<TData[]>([], false),
-    filterer?: (item: TData, regex: RegExp) => boolean,
-    comparer?: string | ObjectComparer<TData>,
-    protected preFilter: (items: TData[]) => TData[] = x => clone(x),
+    items: ObservableOrProperty<TListItem[]>,
+    protected filterer?: (item: TListItem, regex: RegExp) => boolean,
+    protected comparer = new ObjectComparer<TListItem>(),
+    protected preFilter: (items: TListItem[]) => TListItem[] = x => clone(x),
     isMultiSelectEnabled?: boolean,
     isLoading?: ObservableOrProperty<boolean>,
     pagerLimit?: number,
     rateLimit = 100,
     isRoutingEnabled?: boolean,
   ) {
-    super(DataGridViewModel.getItemsRequestObservable(items), items, filterer, comparer, isMultiSelectEnabled, isLoading, pagerLimit, rateLimit, isRoutingEnabled);
+    super(
+      items,
+      x => x,
+      DataGridViewModel.getItemsRequestObservable(items),
+      filterer,
+      comparer,
+      isMultiSelectEnabled,
+      isLoading,
+      pagerLimit,
+      rateLimit,
+      isRoutingEnabled,
+    );
   }
 
-  getProjectionResult(request: ItemsProjectionRequest<TData>) {
+  getProjectionResult(request: ItemsProjectionRequest<TListItem>) {
     let source = this
       .preFilter(request.items || [])
       .asEnumerable();
@@ -362,7 +364,7 @@ export class DataGridViewModel<TData> extends BaseDataGridViewModel<TData, Items
     }
 
     return Observable
-      .of(<ProjectionResult<TData>>{
+      .of(<ProjectionResult<TListItem>>{
         items,
         count,
       });

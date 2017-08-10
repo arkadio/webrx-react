@@ -7,11 +7,11 @@ import { ListGroup, ListGroupProps, ListGroupItem } from 'react-bootstrap';
 import { wx, ReadOnlyProperty, Command } from '../../../WebRx';
 import { wxr, BaseView, ViewModelProps } from '../../React';
 import { CommandButton } from '../CommandButton/CommandButton';
-import { ListViewModel } from './ListViewModel';
+import { BaseListViewModel } from './ListViewModel';
 
 export * from './NavButton';
 
-export type ReadonlyListViewModel<TData> = Readonly<ListViewModel<TData, any>>;
+export type ReadonlyListViewModel<TListItem> = Readonly<BaseListViewModel<any, TListItem, any>>;
 
 export interface ListViewRenderTemplateProps {
   viewTemplate?: ListViewRenderTemplate<any, any>;
@@ -21,27 +21,27 @@ export interface ListViewRenderTemplateProps {
   emptyContent?: any | ((viewModel: ReadonlyListViewModel<any>, view: React.Component<ListViewRenderTemplateProps, any>) => any);
 }
 
-export interface ListViewRenderTemplate<TData, TView extends React.Component<ListViewRenderTemplateProps, any>> {
-  initialize(viewModel: ReadonlyListViewModel<TData>, view: TView): void;
-  cleanup(viewModel: ReadonlyListViewModel<TData>, view: TView): void;
-  render(viewModel: ReadonlyListViewModel<TData>, view: TView): any;
+export interface ListViewRenderTemplate<TListItem, TView extends React.Component<ListViewRenderTemplateProps, any>> {
+  initialize(viewModel: ReadonlyListViewModel<TListItem>, view: TView): void;
+  cleanup(viewModel: ReadonlyListViewModel<TListItem>, view: TView): void;
+  render(viewModel: ReadonlyListViewModel<TListItem>, view: TView): any;
 }
 
-export abstract class BaseListViewTemplate<TItem, TData, TView extends React.Component<ListViewRenderTemplateProps, any>> implements ListViewRenderTemplate<TData, TView> {
+export abstract class BaseListViewTemplate<TItem, TListItem, TView extends React.Component<ListViewRenderTemplateProps, any>> implements ListViewRenderTemplate<TListItem, TView> {
   public static displayName = 'BaseListViewTemplate';
 
-  protected readonly renderTemplateContainer: (content: any, item: TItem, data: TData, index: number, viewModel: ReadonlyListViewModel<TData>, view: TView) => any;
+  protected readonly renderTemplateContainer: (content: any, item: TItem, data: TListItem, index: number, viewModel: ReadonlyListViewModel<TListItem>, view: TView) => any;
 
   constructor(
-    protected readonly renderItem: (item: TItem, data: TData, index: number, viewModel: ReadonlyListViewModel<TData>, view: TView) => any = (x, data) => data.toString(),
-    protected readonly renderItemActions?: (item: TItem, data: TData, index: number, viewModel: ReadonlyListViewModel<TData>, view: TView) => any,
-    protected readonly keySelector: (item: TItem, data: TData, index: number, viewModel: ReadonlyListViewModel<TData>, view: TView) => any = (x, d, index) => index,
-    renderTemplateContainer?: (content: any, item: TItem, data: TData, index: number, viewModel: ReadonlyListViewModel<TData>, view: TView) => any,
+    protected readonly renderItem: (item: TItem, data: TListItem, index: number, viewModel: ReadonlyListViewModel<TListItem>, view: TView) => any = (x, data) => data.toString(),
+    protected readonly renderItemActions?: (item: TItem, data: TListItem, index: number, viewModel: ReadonlyListViewModel<TListItem>, view: TView) => any,
+    protected readonly keySelector: (item: TItem, data: TListItem, index: number, viewModel: ReadonlyListViewModel<TListItem>, view: TView) => any = (x, d, index) => index,
+    renderTemplateContainer?: (content: any, item: TItem, data: TListItem, index: number, viewModel: ReadonlyListViewModel<TListItem>, view: TView) => any,
   ) {
     this.renderTemplateContainer = renderTemplateContainer || this.renderDefaultTemplateContainer;
   }
 
-  protected renderStandardTemplateContainer(content: any, item: TItem, data: TData, index: number, viewModel: ReadonlyListViewModel<TData>, view: TView) {
+  protected renderStandardTemplateContainer(content: any, item: TItem, data: TListItem, index: number, viewModel: ReadonlyListViewModel<TListItem>, view: TView) {
     return (
       <div className='List-templateContainer'>
         { content }
@@ -49,7 +49,7 @@ export abstract class BaseListViewTemplate<TItem, TData, TView extends React.Com
     );
   }
 
-  protected renderSelectableTemplateContainer(content: any, item: TItem, data: TData, index: number, viewModel: ReadonlyListViewModel<TData>, view: TView) {
+  protected renderSelectableTemplateContainer(content: any, item: TItem, data: TListItem, index: number, viewModel: ReadonlyListViewModel<TListItem>, view: TView) {
     return (
       <CommandButton className='List-templateContainer' block plain command={ viewModel.selectItem } commandParameter={ data } >
         { content }
@@ -57,7 +57,7 @@ export abstract class BaseListViewTemplate<TItem, TData, TView extends React.Com
     );
   }
 
-  protected renderDefaultTemplateContainer(content: any, item: TItem, data: TData, index: number, viewModel: ReadonlyListViewModel<TData>, view: TView) {
+  protected renderDefaultTemplateContainer(content: any, item: TItem, data: TListItem, index: number, viewModel: ReadonlyListViewModel<TListItem>, view: TView) {
     return wxr.renderConditional(
       view.props.selectable === true,
       () => this.renderSelectableTemplateContainer(content, item, data, index, viewModel, view),
@@ -65,7 +65,7 @@ export abstract class BaseListViewTemplate<TItem, TData, TView extends React.Com
     );
   }
 
-  protected renderRow(item: TItem, index: number, viewModel: ReadonlyListViewModel<TData>, view: TView) {
+  protected renderRow(item: TItem, index: number, viewModel: ReadonlyListViewModel<TListItem>, view: TView) {
     const data = this.getItemData(item, index, viewModel, view);
 
     return (
@@ -80,7 +80,7 @@ export abstract class BaseListViewTemplate<TItem, TData, TView extends React.Com
     );
   }
 
-  protected renderCheckmark(item: TItem, data: TData, index: number, viewModel: ReadonlyListViewModel<TData>, view: TView) {
+  protected renderCheckmark(item: TItem, data: TListItem, index: number, viewModel: ReadonlyListViewModel<TListItem>, view: TView) {
     return wxr.renderConditional(view.props.checkmarkSelected === true, () => (
       <div className='List-itemSelection'>
         <CommandButton plain command={ viewModel.selectItem } commandParameter={ data }>
@@ -90,7 +90,7 @@ export abstract class BaseListViewTemplate<TItem, TData, TView extends React.Com
     ));
   }
 
-  protected renderItemContainer(item: TItem, data: TData, index: number, viewModel: ReadonlyListViewModel<TData>, view: TView): any {
+  protected renderItemContainer(item: TItem, data: TListItem, index: number, viewModel: ReadonlyListViewModel<TListItem>, view: TView): any {
     return (
       <div className='List-itemContainer'>
         {
@@ -107,7 +107,7 @@ export abstract class BaseListViewTemplate<TItem, TData, TView extends React.Com
     );
   }
 
-  protected renderItemTemplate(item: TItem, data: TData, index: number, viewModel: ReadonlyListViewModel<TData>, view: TView) {
+  protected renderItemTemplate(item: TItem, data: TListItem, index: number, viewModel: ReadonlyListViewModel<TListItem>, view: TView) {
     return (
       <div className='List-itemTemplate'>
         { this.renderItem(item, data, index, viewModel, view) }
@@ -115,7 +115,7 @@ export abstract class BaseListViewTemplate<TItem, TData, TView extends React.Com
     );
   }
 
-  protected renderActions(item: TItem, data: TData, index: number, viewModel: ReadonlyListViewModel<TData>, view: TView) {
+  protected renderActions(item: TItem, data: TListItem, index: number, viewModel: ReadonlyListViewModel<TListItem>, view: TView) {
     return wxr.renderNullable(this.renderItemActions, renderItemActions => (
       <div className='List-itemActions'>
         { renderItemActions(item, data, index, viewModel, view) }
@@ -123,7 +123,7 @@ export abstract class BaseListViewTemplate<TItem, TData, TView extends React.Com
     ));
   }
 
-  protected renderEmptyContent(viewModel: ReadonlyListViewModel<TData>, view: TView) {
+  protected renderEmptyContent(viewModel: ReadonlyListViewModel<TListItem>, view: TView) {
     return wxr.renderConditional(view.props.emptyContent instanceof Function, () => {
       return view.props.emptyContent.apply(this, [ viewModel, view ]);
     }, () => view.props.emptyContent);
@@ -133,18 +133,18 @@ export abstract class BaseListViewTemplate<TItem, TData, TView extends React.Com
     return '';
   }
 
-  protected abstract getItems(viewModel: ReadonlyListViewModel<TData>, view: TView): TItem[];
-  protected abstract getItemData(item: TItem, index: number, viewModel: ReadonlyListViewModel<TData>, view: TView): TData;
+  protected abstract getItems(viewModel: ReadonlyListViewModel<TListItem>, view: TView): TItem[];
+  protected abstract getItemData(item: TItem, index: number, viewModel: ReadonlyListViewModel<TListItem>, view: TView): TListItem;
 
-  public initialize(viewModel: ReadonlyListViewModel<TData>, view: TView) {
+  public initialize(viewModel: ReadonlyListViewModel<TListItem>, view: TView) {
     // do nothing
   }
 
-  public cleanup(viewModel: ReadonlyListViewModel<TData>, view: TView) {
+  public cleanup(viewModel: ReadonlyListViewModel<TListItem>, view: TView) {
     // do nothing
   }
 
-  public render(viewModel: ReadonlyListViewModel<TData>, view: TView) {
+  public render(viewModel: ReadonlyListViewModel<TListItem>, view: TView) {
     return (
       <ListGroup className={ this.getClassName() }>
         {
@@ -163,14 +163,14 @@ export abstract class BaseListViewTemplate<TItem, TData, TView extends React.Com
   }
 }
 
-export class ListViewTemplate<TData> extends BaseListViewTemplate<TData, TData, ListView> {
+export class ListViewTemplate<TListItem> extends BaseListViewTemplate<TListItem, TListItem, ListView> {
   public static displayName = 'ListViewTemplate';
 
   constructor(
-    renderItem?: (item: TData, index: number, viewModel: ReadonlyListViewModel<TData>, view: ListView) => any,
-    renderItemActions?: (item: TData, index: number, viewModel: ReadonlyListViewModel<TData>, view: ListView) => any,
-    keySelector?: (item: TData, index: number, viewModel: ReadonlyListViewModel<TData>, view: ListView) => any,
-    renderTemplateContainer?: (content: any, item: TData, index: number, viewModel: ReadonlyListViewModel<TData>, view: ListView) => any,
+    renderItem?: (item: TListItem, index: number, viewModel: ReadonlyListViewModel<TListItem>, view: ListView) => any,
+    renderItemActions?: (item: TListItem, index: number, viewModel: ReadonlyListViewModel<TListItem>, view: ListView) => any,
+    keySelector?: (item: TListItem, index: number, viewModel: ReadonlyListViewModel<TListItem>, view: ListView) => any,
+    renderTemplateContainer?: (content: any, item: TListItem, index: number, viewModel: ReadonlyListViewModel<TListItem>, view: ListView) => any,
   ) {
     super(
       renderItem == null ? undefined : (item, data, index, viewModel, view) => renderItem(data, index, viewModel, view),
@@ -180,11 +180,11 @@ export class ListViewTemplate<TData> extends BaseListViewTemplate<TData, TData, 
     );
   }
 
-  getItems(viewModel: ReadonlyListViewModel<TData>, view: ListView) {
-    return viewModel.items.value;
+  getItems(viewModel: ReadonlyListViewModel<TListItem>, view: ListView) {
+    return viewModel.listItems.value;
   }
 
-  getItemData(item: TData, index: number, viewModel: ReadonlyListViewModel<TData>, view: ListView) {
+  getItemData(item: TListItem, index: number, viewModel: ReadonlyListViewModel<TListItem>, view: ListView) {
     return item;
   }
 }
@@ -242,7 +242,7 @@ export class TreeViewTemplate<TData> extends BaseListViewTemplate<TreeNode<TData
 
   initialize(viewModel: ReadonlyListViewModel<TData>, view: ListView) {
     this.nodes = wx
-      .whenAny(viewModel.items, x => x || [])
+      .whenAny(viewModel.listItems, x => x || [])
       .switchMap(
         x => this.autoExpand(x, viewModel, view),
         (nodes, autoExpand) => ({ nodes, autoExpand }),
@@ -362,7 +362,7 @@ export class TreeViewTemplate<TData> extends BaseListViewTemplate<TreeNode<TData
 export interface ListProps extends ListGroupProps, ListViewRenderTemplateProps, ViewModelProps {
 }
 
-export class ListView extends BaseView<ListProps, ListViewModel<any, any>> {
+export class ListView extends BaseView<ListProps, BaseListViewModel<any, any, any>> {
   public static displayName = 'ListView';
 
   static defaultProps = {
@@ -398,7 +398,7 @@ export class ListView extends BaseView<ListProps, ListViewModel<any, any>> {
 
   updateOn() {
     return [
-      this.state.items.changed,
+      this.state.listItems.changed,
       this.state.selectedItem.changed,
     ];
   }
